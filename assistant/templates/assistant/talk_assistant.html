@@ -1,0 +1,185 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Talk to NANI</title>
+  <link rel="icon" href="{% static 'assistant/BOT NANI_AI.png' %}" type="image/x-icon" />
+  <style>
+    body {
+      background: linear-gradient(135deg, #0EA5E9 0%, #7C3AED 100%);
+      min-height: 100vh;
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Roboto', sans-serif;
+      color: #fff;
+    }
+    .nani-icon-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin-bottom: 40px;
+    }
+    .nani-icon {
+      width: 120px;
+      height: 120px;
+      border-radius: 50%;
+      background: #fff;
+      box-shadow: 0 4px 32px #0005;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: transform 0.2s;
+      position: relative;
+      overflow: hidden;
+    }
+    .nani-icon:hover {
+      transform: scale(1.08);
+      box-shadow: 0 8px 40px #0007;
+    }
+    .nani-wave {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      height: 30px;
+      display: flex;
+      justify-content: center;
+      align-items: flex-end;
+      pointer-events: none;
+    }
+    .nani-wave span {
+      display: block;
+      width: 10px;
+      height: 15px;
+      margin: 0 3px;
+      background: linear-gradient(180deg, #00f7ff 60%, #7C3AED 100%);
+      border-radius: 5px;
+      animation: nani-wave 1s infinite;
+    }
+    .nani-wave span:nth-child(2) { animation-delay: 0.2s; }
+    .nani-wave span:nth-child(3) { animation-delay: 0.4s; }
+    .nani-wave span:nth-child(4) { animation-delay: 0.6s; }
+    @keyframes nani-wave {
+      0%, 100% { height: 15px; }
+      50% { height: 30px; }
+    }
+    .intro-text {
+      margin-top: 30px;
+      font-size: 2rem;
+      text-align: center;
+      opacity: 0;
+      transition: opacity 0.7s;
+    }
+    .intro-text.visible {
+      opacity: 1;
+    }
+  </style>
+</head>
+<body>
+   <a href="{% url 'home' %}" style="position:absolute; top:20px; left:20px; color:#fff; text-decoration:none; font-size:1.5rem;">&larr; Back</a>
+  <h1 style="text-align:center; color:#fff; font-size:2.5rem; margin-bottom:20px;">Talk to NANI</h1>
+  <div class="nani-icon-container">
+    <div class="nani-icon" id="naniTalkBtn">
+      <img src="{% static 'assistant/BOT NANI_AI.png' %}" alt="NANI AI" style="width: 80px; height: 80px;">
+      <div class="nani-wave" id="naniWave" style="display:none;">
+        <span></span><span></span><span></span><span></span>
+      </div>
+    </div>
+    <div style="margin-top:10px; font-size:1.2rem;">Click the icon to talk to NANI</div>
+  </div>
+  <div class="intro-text" id="introText"></div>
+  <div id="listening-indicator" style="display:none; text-align:center; margin:20px; font-size:2rem; color:#00f7ff;">
+  🎧 Listening...
+</div>
+    <div id="chat-area" style="
+    background:#222;
+    color:#00f7ff;
+    margin:20px auto;
+    padding:20px;
+    width:80%;
+    border-radius:10px;
+    min-height:150px;
+    max-height:200px;      /* Set a max height for 3-4 chats */
+    font-size:1.5rem;
+    overflow-y: auto;      /* Enable vertical scroll */
+    "></div>
+ <script>
+const naniTalkBtn = document.getElementById('naniTalkBtn');
+const naniWave = document.getElementById('naniWave');
+const introText = document.getElementById('introText');
+const listeningIndicator = document.getElementById('listening-indicator');
+const chatArea = document.getElementById('chat-area');
+let introduced = false;
+
+function getCSRFToken() {
+  const name = 'csrftoken';
+  const cookies = document.cookie.split(';');
+  for (let cookie of cookies) {
+    cookie = cookie.trim();
+    if (cookie.startsWith(name + '=')) {
+      return decodeURIComponent(cookie.substring(name.length + 1));
+    }
+  }
+  return '';
+}
+
+naniTalkBtn.addEventListener('click', () => {
+  naniWave.style.display = 'flex';
+  introText.classList.remove('visible');
+  if (!introduced) {
+    setTimeout(() => {
+      introText.textContent = "🤖 Hi, I'm NANI – your personal voice assistant! How can I help you today?";
+      introText.classList.add('visible');
+      naniWave.style.display = 'none';
+      introduced = true;
+      startAssistantChat();
+    }, 1800);
+  } else {
+    setTimeout(() => {
+      naniWave.style.display = 'none';
+      startAssistantChat();
+    }, 800); // shorter animation for subsequent clicks
+  }
+});
+
+function startAssistantChat() {
+  listeningIndicator.style.display = "block";
+  fetch("/start-assistant", {
+    method: "POST",
+    headers: {
+      "X-CSRFToken": getCSRFToken(),
+      "Content-Type": "application/json"
+    }
+  })
+  .then(response => {
+    listeningIndicator.style.display = "none";
+    if (!response.ok) {
+      throw new Error(`Status ${response.status}`);
+    }
+    return response.json();
+  })
+  .then(data => {
+    if (data.conversation) {
+      chatArea.innerHTML += `
+        <div class="conversation-block">
+          ${data.conversation.map(line => `<div>${line}</div>`).join('')}
+        </div>
+        <hr class="chat-separator">
+      `;
+      chatArea.scrollTop = chatArea.scrollHeight;
+    }
+  })
+  .catch(error => {
+    listeningIndicator.style.display = "none";
+    alert("❌ Assistant Error: " + error.message);
+  });
+}
+</script>
+</body>
+</html>
